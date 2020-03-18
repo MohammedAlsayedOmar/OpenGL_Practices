@@ -6,6 +6,16 @@
 #include <fstream>
 #include <string>
 
+#define ASSERT(x) if(!x) __debugbreak();
+
+
+static void GLCheckErrors()
+{
+	while (GLenum error = glGetError())
+	{
+		std::cout << "[OpenGL Error]: ( " << error << " )" << std::endl;
+	}
+}
 
 struct ShaderProgramSource
 {
@@ -23,19 +33,19 @@ static ShaderProgramSource ParseShader(const std::string& filePath)
 
 	std::string line;
 	std::stringstream ss[2];
-	ShaderType type = ShaderType::NONE;
+	ShaderType shaderType = ShaderType::NONE;
 	while (std::getline(stream, line))
 	{
 		if (line.find("#shader") != std::string::npos)
 		{
 			if (line.find("vertex") != std::string::npos)
-				type = ShaderType::VERTEX;
+				shaderType = ShaderType::VERTEX;
 			else if (line.find("fragment") != std::string::npos)
-				type = ShaderType::FRAGMENT;
+				shaderType = ShaderType::FRAGMENT;
 		}
 		else
 		{
-			ss[(int)type] << line << '\n';
+			ss[(int)shaderType] << line << '\n';
 		}
 	}
 
@@ -59,9 +69,9 @@ static unsigned int CompilerShader(unsigned int type, const std::string& source)
 		char* msg = (char*)malloc(sizeof(char) * length);
 
 		glGetShaderInfoLog(shader, length, &length, msg);
-		std::cout << "Error!\n";
+		std::cout << "Error in " << ((type == GL_VERTEX_SHADER) ? "Vertex" : "Fragmenet") << "\n";
 		std::cout << msg << std::endl;
-
+		GLCheckErrors();
 		glDeleteShader(shader);
 		return 0;
 
@@ -121,10 +131,10 @@ int main(void)
 	//};
 
 	float positions[] = {
-		-0.5, -0.5, //0
-		 0.5, -0.5, //1	 
-		 0.5,  0.5, //2
-		-0.5,  0.5 //3
+		-0.5, -0.5,		0.0,0.0,1.0, //0 - Pos (2) / RGB (3)
+		 0.5, -0.5,		1.0,0.0,0.0, //1 - Pos (2) / RGB (3)
+		 0.5,  0.5,		0.0,0.0,1.0, //2 - Pos (2) / RGB (3)
+		-0.5,  0.5,		0.0,1.0,0.0  //3 - Pos (2) / RGB (3)
 	};
 
 	unsigned int indicies[] = {
@@ -132,13 +142,20 @@ int main(void)
 		0, 2, 3
 	};
 
+
+	unsigned int vao;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
 	unsigned int vbo;
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 10, positions, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 4 * 5, positions, GL_STATIC_DRAW);
 
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 5, 0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 5, (void*)(2 * sizeof(float)));
 
 	unsigned int ibo;
 	glGenBuffers(1, &ibo);
@@ -150,6 +167,9 @@ int main(void)
 
 	glUseProgram(program);
 	//glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	int uColor = glGetUniformLocation(program, "uColor");
+	glUniform4f(uColor, 1, 1, 0, 1);
 
 	/* Loop until the user closes the window */
 	while (!glfwWindowShouldClose(window))
@@ -165,6 +185,8 @@ int main(void)
 
 		/* Poll for and process events */
 		glfwPollEvents();
+
+		GLCheckErrors();
 	}
 
 	glDeleteProgram(program);
